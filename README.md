@@ -1,2 +1,2 @@
 # Monsterbash
-Arduino DUE sketches for Monsterbash Arcade PCB
+Arduino DUE firmware for Monsterbash Arcade PCB
