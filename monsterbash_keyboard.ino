@@ -28,6 +28,8 @@ const int BYPASS = 1;
 int fq;
 const int delayTime = 20;
 boolean startBlock = 0;
+boolean enableState;
+boolean prevEnState;
 
 //31KHz  -> 32 us
 //25KHz -> 40 us
@@ -170,12 +172,11 @@ for(int i=0; i<samples; i++){
   periodoMedio = (periodoSum/samplesm)+5;
 }
 //Serial.println(periodoMedio);
-if(periodoMedio > fq){
-  digitalWrite(disablePin, LOW); //ENABLE
-  digitalWrite(ledPin, HIGH);
-}
-else {
-  digitalWrite(disablePin, HIGH);//DISABLE
-  digitalWrite(ledPin, LOW);
+if(periodoMedio > fq){enableState = 1;}
+else {enableState = 0;}
+if (enableState != prevEnState){
+  prevEnState = enableState;
+  digitalWrite(disablePin, !enableState);
+  digitalWrite(ledPin, enableState);
 }
 }
