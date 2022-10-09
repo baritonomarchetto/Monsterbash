@@ -3,7 +3,7 @@
  Controls section (KEYBOARD) and sync frequency check and block (>15KHz by default, but 
  customizable for higher frequencies (i.e. 25KHz or 31KHz).
 
- by Barito, 2017-2021
+ by Barito, 2017-2022
 */
 
 #include <Keyboard.h>
@@ -12,6 +12,8 @@
 
 //comment this line to disable the sync frequncy check and block
 #define SYNC_MONITOR_ACTIVE
+
+#define BYPASS
 
 const int HSyncPin = A8;
 const int disablePin = A11;
@@ -23,7 +25,6 @@ const int P2_B7 = A4; //UNUSED
 
 const int K25Pin = 3;
 const int K31Pin = 4;
-const int BYPASS = 1;
 
 int fq;
 const int delayTime = 20;
@@ -34,10 +35,10 @@ boolean prevEnState;
 //31KHz  -> 32 us
 //25KHz -> 40 us
 //15KHz -> 66 us
-unsigned long periodoSum = 0;
-unsigned long periodoIst = 0;
-unsigned long periodoMedio=0;
-int samplesm;
+int periodoSum;
+int periodoIst;
+int periodoMedio;
+int sCounter;
 const int samples = 10;
 
 struct digitalInput {const byte pin; boolean state; unsigned long dbTime; const byte key; const byte key_shift;} 
@@ -67,7 +68,7 @@ digitalInput[INPUTS] = {
 {42, HIGH, 0, 53, 53}, //5 - P1 COIN
 {43, HIGH, 0, 54, 54}, //6 - P2 COIN
 {45, HIGH, 0, 57, 57}, //9 - SERVICE SW
-{44, HIGH, 0, 48, 48}, //0 - TEST SW
+{44, HIGH, 0, 48, 48} //0 - TEST SW
 };
 
 void setup(){
@@ -95,8 +96,11 @@ digitalWrite(disablePin, LOW); //ENABLE
 digitalWrite(ledPin, HIGH);
 #endif
   
-if (BYPASS){digitalWrite(bypassPin, HIGH);}
-else {digitalWrite(bypassPin, LOW);}
+#ifdef BYPASS //BYPASS VIDEO FILTER
+digitalWrite(bypassPin, HIGH);
+#else
+digitalWrite(bypassPin, LOW);
+#endif  
 
 //31KHz  -> 32 us
 //25KHz -> 40 us
@@ -159,24 +163,23 @@ if (millis()-digitalInput[0].dbTime > delayTime && digitalRead(digitalInput[0].p
 //25KHz -> 40 us
 //15KHz -> 66 us
 void freqBlock(){
-periodoSum = 0;  
-samplesm = samples;
-for(int i=0; i<samples; i++){
-  periodoIst = pulseIn(HSyncPin,HIGH);
-  if(periodoIst < 100 && periodoIst > 10){
-    periodoSum += periodoIst;
-  } 
-  else {
-    samplesm--;
+periodoIst = pulseIn(HSyncPin,HIGH);//time (in us) between a high and low pulse (negtive sync, 5% duty cicle)
+  periodoSum = periodoSum + periodoIst;
+  sCounter++;
+  if(sCounter > samples){
+    periodoMedio = (periodoSum/sCounter);
+    periodoSum = 0;
+    sCounter = 0;
+    if(periodoMedio > fq){
+      enableState = 1;
+    }
+    else {
+      enableState = 0;
+    }
+    if (enableState != prevEnState){
+      prevEnState = enableState;
+      digitalWrite(disablePin, !enableState);
+      digitalWrite(ledPin, enableState);
+    }
   }
-  periodoMedio = (periodoSum/samplesm)+5;
-}
-//Serial.println(periodoMedio);
-if(periodoMedio > fq){enableState = 1;}
-else {enableState = 0;}
-if (enableState != prevEnState){
-  prevEnState = enableState;
-  digitalWrite(disablePin, !enableState);
-  digitalWrite(ledPin, enableState);
-}
 }

@@ -5,7 +5,7 @@
  
  Tested with 2.0.7 joystick library.
 
- by Barito, 2017-2021
+ by Barito, 2017-2022
 */
 
 #include <Joystick.h>
@@ -15,7 +15,14 @@
 //comment the following line to disable the sync frequency check and block
 #define SYNC_MONITOR_ACTIVE
 
-Joystick_ Joystick;
+#define BYPASS
+
+Joystick_ Joystick(JOYSTICK_DEFAULT_REPORT_ID, 
+  JOYSTICK_TYPE_JOYSTICK, 32, 0, //joy type, button count, hatswitch count
+  false, false, false, // X, Y, Z axis
+  false, false, false, // X, Y, Z rotation
+  false, false, //rudder, throttle
+  false, false, false); //accelerator, brake, steering
 
 const int HSyncPin = A8;
 const int disablePin = A11;
@@ -27,7 +34,6 @@ const int P2_B7 = A4; //UNUSED
 
 const int K25Pin = 3;
 const int K31Pin = 4;
-const int BYPASS = 1;
 
 int fq;
 const int delayTime = 20;
@@ -38,10 +44,10 @@ boolean prevEnState;
 //31KHz  -> 32 us
 //25KHz -> 40 us
 //15KHz -> 66 us
-unsigned long periodoSum = 0;
-unsigned long periodoIst = 0;
-unsigned long periodoMedio = 0;
-int samplesm;
+int periodoSum;
+int periodoIst;
+int periodoMedio;
+int sCounter;
 const int samples = 10;
 
 struct digitalInput {const byte pin; boolean state; unsigned long dbTime; const byte button; const byte button_shift;} 
@@ -100,8 +106,11 @@ digitalWrite(disablePin, LOW); //ENABLE
 digitalWrite(ledPin, HIGH);
 #endif
 
-if (BYPASS){digitalWrite(bypassPin, HIGH);}
-else {digitalWrite(bypassPin, LOW);}
+#ifdef BYPASS
+digitalWrite(bypassPin, HIGH);
+#else
+digitalWrite(bypassPin, LOW);
+#endif
 
 //31KHz  -> 32 us
 //25KHz -> 40 us
@@ -162,24 +171,23 @@ if (millis()-digitalInput[0].dbTime > delayTime && digitalRead(digitalInput[0].p
 //25KHz -> 40 us
 //15KHz -> 66 us
 void freqBlock(){
-periodoSum = 0;  
-samplesm = samples;
-for(int i=0; i<samples; i++){
-  periodoIst = pulseIn(HSyncPin,HIGH);
-  if(periodoIst < 100 && periodoIst > 10){
-    periodoSum += periodoIst;
-  } 
-  else {
-    samplesm--;
+periodoIst = pulseIn(HSyncPin,HIGH);//time (in us) between a high and low pulse (negtive sync, 5% duty cicle)
+  periodoSum = periodoSum + periodoIst;
+  sCounter++;
+  if(sCounter > samples){
+    periodoMedio = (periodoSum/sCounter);
+    periodoSum = 0;
+    sCounter = 0;
+    if(periodoMedio > fq){
+      enableState = 1;
+    }
+    else {
+      enableState = 0;
+    }
+    if (enableState != prevEnState){
+      prevEnState = enableState;
+      digitalWrite(disablePin, !enableState);
+      digitalWrite(ledPin, enableState);
+    }
   }
-  periodoMedio = (periodoSum/samplesm)+5;
-}
-//Serial.println(periodoMedio);
-if(periodoMedio > fq){enableState = 1;}
-else {enableState = 0;}
-if (enableState != prevEnState){
-  prevEnState = enableState;
-  digitalWrite(disablePin, !enableState);
-  digitalWrite(ledPin, enableState);
-}
 }
